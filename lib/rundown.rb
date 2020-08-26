@@ -11,7 +11,6 @@ require "tty-prompt"
 require "tty-command"
 require "logger"
 require "pry"
-require "tty-option"
 require "inifile"
 require "pathname"
 
@@ -26,6 +25,8 @@ class Rundown
     table: :blue,
     quote: :blue,
   }
+
+  attr_reader :logger
 
   def initialize(script)
 
@@ -261,10 +262,10 @@ class CLI < Thor
     begin
       rundown.run
       puts "\n✅ Finished.\n"
-      logger << "Runbook finished.\n"
+      rundown.logger << "Runbook finished.\n"
       exit(0)
     rescue Interrupt
-      logger << "Runbook aborted by user.\n"
+      rundown.logger << "Runbook aborted by user.\n"
       puts Pastel.new.red("\n❌ User Aborted")
       exit(1)
     end
