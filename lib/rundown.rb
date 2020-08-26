@@ -43,6 +43,7 @@ class Rundown
 
   def run
     # puts @doc.to_hash_ast[:children]
+    logger << "\n\nRunning runbook\n"
     process_all(@doc.root.children)
   end
 
@@ -99,31 +100,35 @@ class Rundown
       Whirly.status = "Running #{@heading_history.join(" ")}"
     end
 
-    cmd = TTY::Command.new(output: logger)
+    cmd = TTY::Command.new(output: logger, color: false)
 
     begin
 
       err = []
 
       result = if mode == "ruby" && opts.include?("rundown")
+        logger << "Running in-process ruby code\n"
+        logger << script + "\n"
+
         run_ruby(script)
       else    
         temp = Tempfile.new
 
-        logger.debug("Executing script")
-        logger.debug(script)
+        mode = "sh" if mode == ""
+        process = `which #{mode}`.chomp
+
+        logger << "Executing script using #{process}\n"
+        logger << script + "\n"
         
         f = temp.open
         f.write(script)
         f.close
         
-        mode = "sh" if mode == ""
-        process = `which #{mode}`.chomp
-
         if opts.include?("interactive")
+          logger << "Running script in interactive mode, output ommitted.\n"
           system(process, temp.path)
         else
-          result = cmd.run!("#{process} #{temp.path}", chdir: @script_dir, pty: opts.include?("pty")) do |stdout, stderr|
+          result = cmd.run!("#{process} #{temp.path}", chdir: @script_dir, color: false) do |stdout, stderr|
             puts stdout if opts.include?("reveal")
             err << stderr
           end
@@ -136,16 +141,19 @@ class Rundown
         if result == false
           @heading_history << @pastel.dim("-")
           @break_to_next_heading = true
+          logger << "Script failure with skip_on_failure, skipping to next heading\n"
         end
       elsif opts.include?("skip_on_success")
         if result == true
           @heading_history << @pastel.dim("-")
           @break_to_next_heading = true
+          logger << "Script success with skip_on_success, skipping to next heading\n"
         end
       else
         if result
           @heading_history << @pastel.bright_green(".")
         else
+          logger << "Script failed. Aborting.\n"
           @heading_history << @pastel.red("x")
           Whirly.stop
           puts_indented "#{@heading_history.join(' ')}\r"
@@ -253,8 +261,10 @@ class CLI < Thor
     begin
       rundown.run
       puts "\n✅ Finished.\n"
+      logger << "Runbook finished.\n"
       exit(0)
     rescue Interrupt
+      logger << "Runbook aborted by user.\n"
       puts Pastel.new.red("\n❌ User Aborted")
       exit(1)
     end
