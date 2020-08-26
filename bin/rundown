@@ -1,3 +1,8 @@
-#!/bin/sh
+#!/usr/bin/env ruby
+require "pathname"
 
-./lib/rundown.rb $*
+file_name = (Pathname.new(__FILE__).dirname / ".." / "lib").realpath
+
+$LOAD_PATH.unshift(file_name) unless $LOAD_PATH.include?(file_name)
+
+require 'rundown'

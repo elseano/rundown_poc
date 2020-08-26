@@ -267,6 +267,7 @@ class CLI < Thor
     rescue Interrupt
       rundown.logger << "Runbook aborted by user.\n"
       puts Pastel.new.red("\n❌ User Aborted")
+      Whirly.stop
       exit(1)
     end
   end
