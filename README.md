@@ -17,6 +17,8 @@ rundown execute SETUP.md
 
 ## Example
 
+<img src="https://github.com/elseano/rundown/raw/master/docs/runbook.gif">
+
 Rundown really shines when you've got a markdown file which you generally need to copy and paste from to run commands.
 
 <pre>
@@ -61,34 +63,7 @@ All done. Run `./scripts/start` when ready.
 
 </pre>
 
-Running markdown with this file, you'll get an output similar to the below (omitting all the pretty colours and indicators)
-
-```
-$ rundown execute SETUP.md
-
-Acme Project Setup instructions
-
-In order to develop Acme, install homebrew.
-
-Then install all the NodeJS packages.
-
-Initialise your database
-
-. . . .
-
-  Hooking into Widgets
-  
-  In order to hook Acme into Widgets, you'll need to update your Widgets config file
-  
-  .
-  
-Done
-
-  All done. Run `./scripts/start` when ready.
-
-```
-
-The `.` indicate completed code blocks. During runtime, the output would reveal itself upto the currently executing codeblock. For example, as Homebrew is being installed, you wouldn't see anything under "install homebrew".
+The `.` indicate completed code blocks, while `x` indicates failure, and `-` indicates skipped. 
  
 
 ## Code Blocks
