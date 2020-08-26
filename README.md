@@ -1,3 +1,13 @@
+# Rundown
+
+Turns markdown files into amazing executable documentation.
+
+Usage:
+
+```
+rundown execute SETUP.md
+```
+
 ## Supports
 
 * Renders all markdown blocks
@@ -80,5 +90,51 @@ Done
 
 The `.` indicate completed code blocks. During runtime, the output would reveal itself upto the currently executing codeblock. For example, as Homebrew is being installed, you wouldn't see anything under "install homebrew".
  
+
+## Code Blocks
+
+Code blocks in Markdown support specifying the interpreter:
+
+<pre>
+``` ruby
+puts "Hi"
+```
+</pre>
+
+Any interpreter available within your `PATH` is supported. If no interpreter is specified, `sh` is used.
+
+By default, code blocks are not shown, however running with the `--verbose` option will show code blocks before they're executed.
+
+If a code block returns a **non-zero** exit code, the run is aborted and `STDERR` is displayed.
+
+### Modifiers
+
+Code block modifiers are supported which change how the block operates. Any number of modifiers can be specified after the interpreter.
+
+``` ruby interactive
+print "Enter your name: "
+name = gets
+puts "Hi #{name}"
+```
+
+The following modifiers are supported:
+
+* `interactive` - Show STDOUT and STDERR, and expect input from STDIN. Handy for scripts which might ask for a password, etc.
+* `skip_on_success` - Skip the remaining code and content until the next heading if the script exits with a **zero** error code.
+* `skip_on_failure` - Skip the remaining code and content until the next heading if the script exits with a **non-zero** error code.
+* `runbook` - Only works with the `ruby` interpreter. Runs the code inside the running Runbook process, which gives you access to utilities as described below.
+* `nospin` - Don't show the activity spinner. 
+* `display_only` - Don't run the code block, instead display it.
+* `reveal` - Show the STDOUT of the running codeblock.
+
+The modifiers `skip_on_success` and `skip_on_failure` are great guards to prevent taking an action twice, and can speed up repeated executions.
+
+### Runbook Utilities
+
+When using `ruby` with the `runbook` modifier, you'll have access to the libraries included with Runbook:
+
+* `prompt` - An instance of TTY::Prompt, for asking questions.
+* `Inifile` - The Inifile Gem for reading and manipulating `.ini` files.
+
 
 
