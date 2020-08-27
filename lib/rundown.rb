@@ -14,6 +14,57 @@ require "pry"
 require "inifile"
 require "pathname"
 
+class TTY::Markdown::Parser
+  def convert_codespan(node, opts)
+    opts[:result] << @pastel.bright_blue.bold(node.value)
+  end
+
+  def convert_br(node, _)
+    "\n"
+  end
+
+  def convert_codeblock(el, opts)
+    opts[:fenced] = false
+
+    raw_code = Strings.wrap(el.value, @width)
+    highlighted = ::TTY::Markdown::SyntaxHighliter.highlight(raw_code, @color_opts.merge(opts).merge(lang: el.options[:lang]))
+
+    code = highlighted.split("\n").map.with_index do |line, i|
+            if i.zero? # first line
+              line
+            else
+              line.insert(0, ' ' * @current_indent)
+            end
+          end
+    opts[:result] << code.join("\n")
+  end
+
+
+end
+
+module TTY::Markdown::SyntaxHighliter
+  def highlight(code, **options)
+    lang = options[:lang] || guess_lang(code)
+    mode = options[:mode] || TTY::Color.mode
+    lines = code.dup.lines
+    if options[:fenced].nil?
+      code = lines[1...-1].join + lines[-1].strip
+    end
+
+    lexer = Rouge::Lexer.find_fancy(lang, code) || Rouge::Lexers::PlainText
+
+    if mode >= 256
+      formatter = Rouge::Formatters::Terminal256.new(Rouge::Themes::Github.new)
+      formatter.format(lexer.lex(code))
+    else
+      pastel = Pastel.new
+      code.split("\n").map { |line| pastel.yellow.on_black(line) }.join("\n")
+    end
+  end
+  module_function :highlight
+
+end
+
 class Rundown
   THEME = {
     em: [:italic],
@@ -28,10 +79,17 @@ class Rundown
 
   attr_reader :logger
 
-  def initialize(script, log_file)
+  def initialize(script, log_file, dry_run = false)
     @script_file = Pathname.new(script).realpath
     @script_dir = @script_file.join("..")
-    @doc = Kramdown::Document.new(IO.read(@script_file))
+    
+    doc_contents = IO.read(@script_file)
+
+    # Switch from triple-back-tick to triple-tilda, which works better with Kramdown.
+    # doc_contents.gsub!("``` ", "~~~").gsub!("```", "~~~")
+
+    @doc = Kramdown::Document.new(doc_contents, input: "GFM")
+    @dry_run = dry_run
 
     @log_file = if log_file
       Pathname.new(log_file)
@@ -51,11 +109,15 @@ class Rundown
     @current_heading_level = 0
     @break_to_next_heading = false
     @heading_history = []
+    @code_modifiers = []
   end
 
   def run
     logger << "\n\nRunning runbook\n"
     puts @pastel.dim("Running #{@script_file.basename}...")
+
+    puts @doc.root.children.map(&:inspect)
+    # binding.pry
 
     process_all(@doc.root.children)
   end
@@ -74,14 +136,19 @@ class Rundown
     when :blockquote
       process_bq(child)
     when :p
-      process_p(child.children)
+      process_p(child)
     when :codespan
       execute(child)
+      @code_modifiers = []
     when :text
       process_bq(child)
     when :blank
       puts "\n" unless @already_newline || @last_block_code
       @already_newline = true
+    when :codeblock
+      execute(child)
+    when :xml_comment
+      @code_modifiers = child.value.sub("<!--", "").sub("-->", "").strip.split(/\s+/)
     end
   end
 
@@ -101,20 +168,43 @@ class Rundown
     end
   end
 
+  def executable?(child)
+    child && 
+      ((child.type == :codespan && child.value.to_s.include?("\n")) ||
+      (child.type == :codeblock))
+
+  end
+
   def execute(child)
-    mode_, *script = child.value.split("\n")
-    mode, *opts = mode_.strip.split(/\s+/)
+    mode, opts, script = if child.options[:lang]
+      # Support GFM
+      m, *o = child.options[:lang].strip.split(/\s+/)
+
+      [m, o, child.value]
+    else
+      # Support Kramdown
+      m, *s = child.value.split("\n")
+      m, *o = m.strip.split(/\s+/)
+
+      [m, o, script]
+    end
 
     opts ||= []
-    script = script.join("\n")
+    opts += @code_modifiers
+    script = Array(script).join("\n")
 
     if opts.include?("display_only")
       puts_indented to_text(child)
       @last_block_code = false
+      @already_newline = false
+      @code_modifiers = []
       return
     end
 
+
     task_name, script = get_task_name_from_script(script, opts)
+
+
 
     if script == ""
       puts_indented "#{@pastel.red(TTY::Spinner::CROSS)} Empty script found. Ignoring."
@@ -133,7 +223,9 @@ class Rundown
 
       err = []
 
-      result = if mode == "ruby" && opts.include?("rundown")
+      result = if @dry_run
+        !opts.include?("skip_on_success")
+      elsif mode == "ruby" && opts.include?("rundown")
         logger << "Running in-process ruby code\n"
         logger << script + "\n"
 
@@ -173,7 +265,7 @@ class Rundown
 
       if opts.include?("skip_on_failure")
         if result == false
-          spinner && spinner.stop(@pastel.dim("(Not required)"))
+          spinner && spinner.success(@pastel.dim("(Not required)"))
           @heading_history << @pastel.dim("-")
           @break_to_next_heading = true
           logger << "Script failure with skip_on_failure, skipping to next heading\n"
@@ -183,7 +275,7 @@ class Rundown
         end
       elsif opts.include?("skip_on_success")
         if result == true
-          spinner && spinner.stop(@pastel.dim("(Not required)"))
+          spinner && spinner.success(@pastel.dim("(Not required)"))
           @heading_history << @pastel.dim("-")
           @break_to_next_heading = true
           logger << "Script success with skip_on_success, skipping to next heading\n"
@@ -226,6 +318,7 @@ class Rundown
 
     # print_indented "#{@heading_history.join(' ')}\r"
     @last_block_code = true
+    @code_modifiers = []
   end
 
   def process_header(header)
@@ -242,21 +335,29 @@ class Rundown
     puts_indented to_text(bq)
   end
 
-  def process_p(children)
-    if children.length == 1 && children[0].type == :codespan
-      process(children[0])
+  def code_modifier?(child)
+    child.attr["href"] =~ /^[a-z\s_]+$/ && child.value.nil?
+  end
 
-      @last_block_code = true
-      @already_newline = false
-    else
-      puts "\n" if @last_block_code
+  def process_p(p)
+    executable, _display = p.children.partition { |c| executable?(c) }
+    code_modifiers, display = _display.partition { |c| code_modifier?(c) }
 
-      text = to_text(children)
-      puts_indented text
+    binding.pry if $trap
 
-      @last_block_code = false
-      @already_newline = false
+    stripped_p = p.dup
+    stripped_p.children = display
+
+    result = to_text(stripped_p)
+    puts_indented result #unless result.join.strip == ""
+
+    @code_modifiers += code_modifiers.flat_map { |cm| cm.attr["href"].to_s.split(/\s+/) }
+
+    if executable.length > 0
+      process(executable[0])
     end
+
+    @already_newline = false
   end
 
   def process_all(children)
@@ -269,16 +370,8 @@ class Rundown
     doc = @doc.dup
     doc.root.children = Array(children)
     TTY::Markdown::Parser.convert(doc.root, doc.options.merge({ theme: THEME })).map do |line|
-      # Hack, as codespan is rendered to yellow, if the terminal background is white then it's really hard to read.
-      fix_hardcoded_yellow_on_white(line.join).split("\n")
+      line.join.split("\n")
     end.flatten
-  end
-
-  def fix_hardcoded_yellow_on_white(string)
-    new_code_start, new_code_end = @pastel.bright_yellow.on_black(" ").split(" ")
-
-    # Super hacky, but TTY hardcodes the colour
-    string.gsub("\e[38;5;230m", new_code_start).gsub("\e[39m", "\e[39;0;0m")
   end
 
   def indent_to_s(offset = 0)
@@ -287,8 +380,8 @@ class Rundown
 
   def puts_indented(text)
     # binding.pry
-    Array(text).each do |line|      
-      puts(indent_to_s + line) unless line.strip == ""
+    Array(text).join("\n").strip.split("\n").each do |line|      
+      puts(indent_to_s + line)
     end
   end
 
@@ -302,17 +395,12 @@ class CLI < Thor
     true
   end
 
-  desc "preview [FILENAME]", "Previews a markdown file in the terminal"
-  def preview(filename)
-    puts TTY::Markdown.parse_file(filename, { theme: Rundown::THEME })
-    exit(0)
-  end
-
   desc "[FILENAME]", "Executes a markdown file."
   option :log
+  options :dryrun => false
   def execute(script_file)
     begin
-      rundown = Rundown.new(script_file, options["log"])
+      rundown = Rundown.new(script_file, options["log"], options["dryrun"])
       rundown.run
       puts "\n✅ Finished.\n"
       rundown.logger << "Runbook finished.\n"
@@ -329,6 +417,6 @@ class CLI < Thor
 end
 
 args = ARGV.dup
-args.unshift("execute") unless (args & (CLI.printable_commands + ["help"])).length > 0 && args.length > 0
+args.unshift("execute") unless args[0] == "help"
 
 CLI.start(args)
