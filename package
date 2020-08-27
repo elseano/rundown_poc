@@ -1,0 +1,5 @@
+#!/bin/sh
+
+bundle install --standalone
+rm rundown-dist.tgz
+tar --exclude .bundle --exclude docs  -zcvf rundown-dist.tgz .
