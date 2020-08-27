@@ -83,10 +83,7 @@ class Rundown
     @script_file = Pathname.new(script).realpath
     @script_dir = @script_file.join("..")
     
-    doc_contents = IO.read(@script_file)
-
-    # Switch from triple-back-tick to triple-tilda, which works better with Kramdown.
-    # doc_contents.gsub!("``` ", "~~~").gsub!("```", "~~~")
+    doc_contents = preprocess(IO.read(@script_file))
 
     @doc = Kramdown::Document.new(doc_contents, input: "GFM")
     @dry_run = dry_run
@@ -110,6 +107,13 @@ class Rundown
     @break_to_next_heading = false
     @heading_history = []
     @code_modifiers = []
+  end
+
+  def preprocess(doc_string)
+    # Github allows multiple interpreter statements in fenced code blocks, but Kramdown breaks,
+    # so we rewrite that into the blank link format.
+    doc_string.
+      gsub(/^```[ ]*([a-z]+)[ ]+(.+)$/, "[](\\2)\n```\\1")
   end
 
   def run
@@ -201,10 +205,7 @@ class Rundown
       return
     end
 
-
     task_name, script = get_task_name_from_script(script, opts)
-
-
 
     if script == ""
       puts_indented "#{@pastel.red(TTY::Spinner::CROSS)} Empty script found. Ignoring."
