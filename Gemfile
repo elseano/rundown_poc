@@ -9,7 +9,7 @@ gem "kramdown"
 gem "tty-markdown"
 gem "tty-prompt"
 gem "tty-command"
-gem "whirly"
+gem "tty-spinner"
 gem "pry"
 gem 'thor'
 gem 'inifile'

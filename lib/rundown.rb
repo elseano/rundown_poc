@@ -6,7 +6,7 @@ require "thor"
 require "kramdown"
 require "tty-markdown"
 require "tempfile"
-require "whirly"
+require "tty-spinner"
 require "tty-prompt"
 require "tty-command"
 require "logger"
@@ -28,23 +28,35 @@ class Rundown
 
   attr_reader :logger
 
-  def initialize(script)
-
+  def initialize(script, log_file)
     @script_file = Pathname.new(script).realpath
     @script_dir = @script_file.join("..")
     @doc = Kramdown::Document.new(IO.read(@script_file))
-    @logger = Logger.new(@script_file.sub_ext(".log"))
+
+    @log_file = if log_file
+      Pathname.new(log_file)
+    elsif ENV["HOME"]
+      Pathname.new(ENV["HOME"]) / ".rundown" / @script_file.basename.sub_ext(".log")
+    else
+      @script_file.sub_ext(".log")
+    end
+
+    puts @log_file.to_s
+
+    @log_file.dirname.mkdir unless @log_file.dirname.exist?
+    
+    @logger = Logger.new(@log_file)
     @pastel = Pastel.new
 
     @current_heading_level = 0
     @break_to_next_heading = false
     @heading_history = []
-
   end
 
   def run
-    # puts @doc.to_hash_ast[:children]
     logger << "\n\nRunning runbook\n"
+    puts @pastel.dim("Running #{@script_file.basename}...")
+
     process_all(@doc.root.children)
   end
 
@@ -78,6 +90,17 @@ class Rundown
     eval(script)
   end
 
+  def get_task_name_from_script(script, opts)
+    if opts.include?("named")
+      script_lines = script.split("\n")
+      task_name = script_lines[0].sub(/^.*?\s+/, "")
+      
+      return task_name, script_lines[1..-1].join("\n")
+    else
+      return "Running...", script
+    end
+  end
+
   def execute(child)
     mode_, *script = child.value.split("\n")
     mode, *opts = mode_.strip.split(/\s+/)
@@ -87,18 +110,21 @@ class Rundown
 
     if opts.include?("display_only")
       puts_indented to_text(child)
+      @last_block_code = false
       return
     end
 
+    task_name, script = get_task_name_from_script(script, opts)
+
     if script == ""
-      puts "Error running empty script"
-      puts
-      puts child.value.inspect
+      puts_indented "#{@pastel.red(TTY::Spinner::CROSS)} Empty script found. Ignoring."
+      return
     end
 
     unless opts.include?("nospin")
-      Whirly.start(append_newline: false, remove_after_stop: true)
-      Whirly.status = "Running #{@heading_history.join(" ")}"
+      spinner = TTY::Spinner.new("#{indent_to_s}:spinner :task_name", success_mark: @pastel.green(TTY::Spinner::TICK), error_mark: @pastel.red(TTY::Spinner::CROSS), hide_cursor: true)
+      spinner.update(task_name: task_name)
+      spinner.auto_spin
     end
 
     cmd = TTY::Command.new(output: logger, color: false)
@@ -111,7 +137,14 @@ class Rundown
         logger << "Running in-process ruby code\n"
         logger << script + "\n"
 
-        run_ruby(script)
+        case run_ruby(script)
+        when true 
+          true
+        when false 
+          false
+        else
+          true
+        end
       else    
         temp = Tempfile.new
 
@@ -140,24 +173,34 @@ class Rundown
 
       if opts.include?("skip_on_failure")
         if result == false
+          spinner && spinner.stop(@pastel.dim("(Not required)"))
           @heading_history << @pastel.dim("-")
           @break_to_next_heading = true
           logger << "Script failure with skip_on_failure, skipping to next heading\n"
+        else
+          spinner && spinner.success(@pastel.dim("(Done)"))
+          @heading_history << @pastel.bright_green(".")
         end
       elsif opts.include?("skip_on_success")
         if result == true
+          spinner && spinner.stop(@pastel.dim("(Not required)"))
           @heading_history << @pastel.dim("-")
           @break_to_next_heading = true
           logger << "Script success with skip_on_success, skipping to next heading\n"
+        else
+          spinner && spinner.success(@pastel.dim("(Done)"))
+          @heading_history << @pastel.bright_green(".")
         end
       else
         if result
+          spinner && spinner.success(@pastel.dim("(Done)"))
           @heading_history << @pastel.bright_green(".")
         else
+          spinner && spinner.error(@pastel.dim("(Failed)"))
+
           logger << "Script failed. Aborting.\n"
           @heading_history << @pastel.red("x")
-          Whirly.stop
-          puts_indented "#{@heading_history.join(' ')}\r"
+          # puts_indented "#{@heading_history.join(' ')}\r"
 
           puts "\n\n"
 
@@ -167,6 +210,9 @@ class Rundown
 
           puts @pastel.red(err.join("\n"))
 
+          puts "\n"
+          puts "Check the log file at #{@log_file} for more details."
+
           puts "\n❌ Failed/Aborted.\n\n"
 
           exit(-1)
@@ -175,10 +221,10 @@ class Rundown
 
     ensure
       temp&.close(true)
-      Whirly.stop
+      spinner && spinner.stop
     end
 
-    print_indented "#{@heading_history.join(' ')}\r"
+    # print_indented "#{@heading_history.join(' ')}\r"
     @last_block_code = true
   end
 
@@ -203,6 +249,7 @@ class Rundown
       @last_block_code = true
       @already_newline = false
     else
+      puts "\n" if @last_block_code
 
       text = to_text(children)
       puts_indented text
@@ -222,8 +269,16 @@ class Rundown
     doc = @doc.dup
     doc.root.children = Array(children)
     TTY::Markdown::Parser.convert(doc.root, doc.options.merge({ theme: THEME })).map do |line|
-      line.join.split("\n")
+      # Hack, as codespan is rendered to yellow, if the terminal background is white then it's really hard to read.
+      fix_hardcoded_yellow_on_white(line.join).split("\n")
     end.flatten
+  end
+
+  def fix_hardcoded_yellow_on_white(string)
+    new_code_start, new_code_end = @pastel.bright_yellow.on_black(" ").split(" ")
+
+    # Super hacky, but TTY hardcodes the colour
+    string.gsub("\e[38;5;230m", new_code_start).gsub("\e[39m", "\e[39;0;0m")
   end
 
   def indent_to_s(offset = 0)
@@ -247,19 +302,17 @@ class CLI < Thor
     true
   end
 
-  desc "preview FILENAME", "Previews a markdown file in the terminal"
+  desc "preview [FILENAME]", "Previews a markdown file in the terminal"
   def preview(filename)
     puts TTY::Markdown.parse_file(filename, { theme: Rundown::THEME })
     exit(0)
   end
 
-  desc "execute FILENAME", "Executes a markdown file."
+  desc "[FILENAME]", "Executes a markdown file."
+  option :log
   def execute(script_file)
-    puts "Running #{script_file}...\n"
-
-    rundown = Rundown.new(script_file)
-    
     begin
+      rundown = Rundown.new(script_file, options["log"])
       rundown.run
       puts "\n✅ Finished.\n"
       rundown.logger << "Runbook finished.\n"
@@ -267,10 +320,15 @@ class CLI < Thor
     rescue Interrupt
       rundown.logger << "Runbook aborted by user.\n"
       puts Pastel.new.red("\n❌ User Aborted")
-      Whirly.stop
       exit(1)
+    rescue Errno::ENOENT
+      puts Pastel.new.red("#{script_file} not found.")
+      exit(2)
     end
   end
 end
 
-CLI.start(ARGV)
+args = ARGV.dup
+args.unshift("execute") unless (args & (CLI.printable_commands + ["help"])).length > 0 && args.length > 0
+
+CLI.start(args)

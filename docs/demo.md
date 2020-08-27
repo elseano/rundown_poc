@@ -1,25 +1,40 @@
 # Acme Project setup instructions
 
-In order to develop Acme, install homebrew.
+In order to develop Acme, install `homebrew`.
 
-``` bash
+``` bash named
+# Installing Homebrew...
 sleep 5
 ```
 
 Then install all the NodeJS packages.
 
-``` bash
+``` bash named
+# Installing NodeJS...
 sleep 8
 ```
 
 Initialise your database
 
-``` bash
+``` bash named
+# Checking database is setup...
+sleep 1
+```
+
+``` bash named
+# Setting up database...
+sleep 3
+```
+
+Fix errors
+
+``` bash named skip_on_success
+# Checking for errors...
 sleep 1
 ```
 
 ``` bash
-sleep 3
+We will never get here.
 ```
 
 ## Hooking into Widgets

@@ -1,8 +1,8 @@
 #!/usr/bin/env ruby
 require "pathname"
 
-file_name = (Pathname.new(__FILE__).dirname / ".." / "lib").realpath
-
+file_name = (ENV["RUNDOWN_HOME"] || (Pathname.new(__FILE__).realpath.dirname / "..")).to_s
+file_name = Pathname.new(file_name) / "lib"
 $LOAD_PATH.unshift(file_name) unless $LOAD_PATH.include?(file_name)
 
 require 'rundown'

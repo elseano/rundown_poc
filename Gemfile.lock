@@ -40,10 +40,10 @@ GEM
       tty-screen (~> 0.7)
       wisper (~> 2.0.0)
     tty-screen (0.8.1)
+    tty-spinner (0.9.3)
+      tty-cursor (~> 0.7)
     unicode-display_width (1.7.0)
     unicode_utils (1.4.0)
-    whirly (0.2.6)
-      unicode-display_width (~> 1.1)
     wisper (2.0.1)
 
 PLATFORMS
@@ -57,7 +57,7 @@ DEPENDENCIES
   tty-command
   tty-markdown
   tty-prompt
-  whirly
+  tty-spinner
 
 BUNDLED WITH
    1.17.2
