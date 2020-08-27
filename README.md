@@ -84,13 +84,34 @@ If a code block returns a **non-zero** exit code, the run is aborted and `STDERR
 
 ### Modifiers
 
-Code block modifiers are supported which change how the block operates. Any number of modifiers can be specified after the interpreter.
+Code block modifiers are supported which change how the block operates. Any number of modifiers can be specified, and there are several ways to specify them depending on the markdown engine you're using to render the file.
 
-``` ruby interactive
-print "Enter your name: "
-name = gets
-puts "Hi #{name}"
-```
+**Option 1** straight after the language specification. Works with GitHub.
+
+    ``` ruby interactive
+    print "Enter your name: "
+    name = gets
+    puts "Hi #{name}"
+    ```
+
+**Option 2** as a empty link. Works with Github and a few other renderers.
+
+    [](interactive)
+    ``` ruby
+    print "Enter your name: "
+    name = gets
+    puts "Hi #{name}"
+    ```
+
+**Option 3** as XML comments
+
+    <!-- interactive -->
+    ``` ruby
+    print "Enter your name: "
+    name = gets
+    puts "Hi #{name}"
+    ```
+
 
 The following modifiers are supported:
 
@@ -98,9 +119,10 @@ The following modifiers are supported:
 * `skip_on_success` - Skip the remaining code and content until the next heading if the script exits with a **zero** error code.
 * `skip_on_failure` - Skip the remaining code and content until the next heading if the script exits with a **non-zero** error code.
 * `runbook` - Only works with the `ruby` interpreter. Runs the code inside the running Runbook process, which gives you access to utilities as described below.
-* `nospin` - Don't show the activity spinner. 
+* `nospin` - Don't show the activity spinner. Generally you'll want to use with `interactive`.
 * `display_only` - Don't run the code block, instead display it.
 * `reveal` - Show the STDOUT of the running codeblock.
+* `named` - The first line of the script should be a comment, and the comment text will be used as the spinner text while executing.
 
 The modifiers `skip_on_success` and `skip_on_failure` are great guards to prevent taking an action twice, and can speed up repeated executions.
 
