@@ -5,7 +5,7 @@ Turns markdown files into amazing executable documentation.
 Usage:
 
 ```
-rundown execute SETUP.md
+rundown SETUP.md
 ```
 
 ## Supports
@@ -118,7 +118,7 @@ The following modifiers are supported:
 * `interactive` - Show STDOUT and STDERR, and expect input from STDIN. Handy for scripts which might ask for a password, etc.
 * `skip_on_success` - Skip the remaining code and content until the next heading if the script exits with a **zero** error code.
 * `skip_on_failure` - Skip the remaining code and content until the next heading if the script exits with a **non-zero** error code.
-* `runbook` - Only works with the `ruby` interpreter. Runs the code inside the running Runbook process, which gives you access to utilities as described below.
+* `rundown` - Only works with the `ruby` interpreter. Runs the code inside the running Rundown process, which gives you access to utilities as described below.
 * `nospin` - Don't show the activity spinner. Generally you'll want to use with `interactive`.
 * `display_only` - Don't run the code block, instead display it.
 * `reveal` - Show the STDOUT of the running codeblock.
@@ -126,12 +126,23 @@ The following modifiers are supported:
 
 The modifiers `skip_on_success` and `skip_on_failure` are great guards to prevent taking an action twice, and can speed up repeated executions.
 
-### Runbook Utilities
+### Rundown Utilities
 
-When using `ruby` with the `runbook` modifier, you'll have access to the libraries included with Runbook:
+When using `ruby` with the `rundown` modifier, you'll have access to the libraries included with Rundown:
 
 * `prompt` - An instance of TTY::Prompt, for asking questions.
 * `Inifile` - The Inifile Gem for reading and manipulating `.ini` files.
 
 
+## Todo
 
+Rundown is currently under development. It's good for general use, but there's some features still to add:
+
+* [ ] Clean up the `ruby` with `rundown` API.
+* [ ] Homebrew formula for installation (possibly with TravellingRuby)
+* [ ] Gemspec to allow installation from the `gem` command.
+* [ ] Support directly invoking specific parts of the file (and/or an option menu)
+* [ ] Support running a markdown file from STDIN to make executable scripts
+* [ ] Test suite
+
+If you're using Rundown, let me know! Feel free to add issues and questions.
