@@ -1,2 +1,3 @@
 lib/bundle
 test.*
+*.log
