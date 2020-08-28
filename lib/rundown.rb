@@ -19,8 +19,8 @@ class TTY::Markdown::Parser
     opts[:result] << @pastel.bright_blue.bold(node.value)
   end
 
-  def convert_br(node, _)
-    "\n"
+  def convert_br(node, opts)
+    opts[:result] << "\n"
   end
 
   def convert_codeblock(el, opts)
@@ -142,7 +142,7 @@ class Rundown
     when :text
       process_bq(child)
     when :blank
-      puts "\n" unless @already_newline || @last_block_code
+      puts "\n" if !@already_newline && !@last_block_code
       @already_newline = true
     when :codeblock
       execute(child)
@@ -314,6 +314,7 @@ class Rundown
 
     # print_indented "#{@heading_history.join(' ')}\r"
     @last_block_code = true
+    @already_newline = false
     @code_modifiers = []
   end
 
@@ -339,18 +340,23 @@ class Rundown
     executable, _display = p.children.partition { |c| executable?(c) }
     code_modifiers, display = _display.partition { |c| code_modifier?(c) }
 
-    binding.pry if $trap
-
     stripped_p = p.dup
     stripped_p.children = display
 
     result = to_text(stripped_p)
-    puts_indented result #unless result.join.strip == ""
+
+    unless result.join == ""
+      puts "\n" if @last_block_code
+      puts_indented result
+    end
 
     @code_modifiers += code_modifiers.flat_map { |cm| cm.attr["href"].to_s.split(/\s+/) }
 
     if executable.length > 0
       process(executable[0])
+      @last_block_code = true
+    else
+      @last_block_code = false
     end
 
     @already_newline = false
@@ -375,7 +381,6 @@ class Rundown
   end
 
   def puts_indented(text)
-    # binding.pry
     Array(text).join("\n").strip.split("\n").each do |line|      
       puts(indent_to_s + line)
     end
