@@ -1,3 +1,4 @@
 lib/bundle
 test.*
 *.log
+rundown-dist.tgz
