@@ -8,6 +8,8 @@ Usage:
 rundown SETUP.md
 ```
 
+<img src="https://github.com/elseano/rundown/raw/master/docs/preview.png">
+
 ## Supports
 
 * Renders all markdown blocks
