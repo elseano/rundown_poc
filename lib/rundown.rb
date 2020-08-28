@@ -96,8 +96,6 @@ class Rundown
       @script_file.sub_ext(".log")
     end
 
-    puts @log_file.to_s
-
     @log_file.dirname.mkdir unless @log_file.dirname.exist?
     
     @logger = Logger.new(@log_file)
@@ -119,9 +117,6 @@ class Rundown
   def run
     logger << "\n\nRunning runbook\n"
     puts @pastel.dim("Running #{@script_file.basename}...")
-
-    puts @doc.root.children.map(&:inspect)
-    # binding.pry
 
     process_all(@doc.root.children)
   end
