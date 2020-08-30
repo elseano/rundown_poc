@@ -1,34 +1,36 @@
 # Acme Project setup instructions
 
+This is a Rundown demo script, showing the features of rundown.
+
 In order to develop Acme, install `homebrew`.
 
-``` bash named
+``` bash named display
 # Installing Homebrew...
-sleep 5
+sleep 1
 ```
 
 Then install all the NodeJS packages.
 
-``` bash named
+``` bash named display
 # Installing NodeJS...
-sleep 8
+sleep 1
 ```
 
 Initialise your database
 
-``` bash named
+``` bash named display
 # Checking database is setup...
 sleep 1
 ```
 
-``` bash named
+``` bash named display
 # Setting up database...
-sleep 3
+sleep 1
 ```
 
 Fix errors
 
-``` bash named skip_on_success
+``` bash named skip_on_success display
 # Checking for errors...
 sleep 1
 ```
@@ -44,6 +46,28 @@ In order to hook Acme into Widgets, you'll need to update your Widgets config fi
 ``` ruby rundown
 sleep(1)
 ```
+
+## Setting up environment
+
+Environment variables can be set for future scripts by printing a special command to STDOUT, in the form of `set rundown KEY=VALUE`.
+
+``` ruby rundown
+$trap=false
+true
+```
+
+``` bash named capture_env
+# Grabbing env stuff
+echo "rundown set SOME_ENV=Hi there from a script!"
+```
+
+Now that I have them, I can reference them in later scripts:
+
+
+``` bash reveal nospin
+echo "I set the environment variable SOME_ENV to $SOME_ENV"
+```
+
 
 # Done
 

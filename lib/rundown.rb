@@ -96,6 +96,7 @@ class Rundown
       @script_file.sub_ext(".log")
     end
 
+    @script_env = Hash.new
     @log_file.dirname.mkdir unless @log_file.dirname.exist?
     
     @logger = Logger.new(@log_file)
@@ -147,8 +148,27 @@ class Rundown
     when :codeblock
       execute(child)
     when :xml_comment
-      @code_modifiers = child.value.sub("<!--", "").sub("-->", "").strip.split(/\s+/)
+      process_xml(child)
     end
+  end
+
+  def process_xml(child)
+
+    stripped_contents = child.value.sub(/<!---?~?/, "").sub("-->", "")
+
+    # Check for special block, which is <!--~ or <!---~
+    if child.value =~ /<!---?~/ 
+      # If there's fenced code, it's a hidden executable block.
+      # Parse it as a document.
+      if stripped_contents.include?("```")
+        child_doc = Kramdown::Document.new(stripped_contents, input: "GFM")
+        process_all(child_doc.root.children)
+      else
+        # Otherwise, treat as code modifiers.
+        @code_modifiers = stripped_contents.split(/\s+/)
+      end
+    end      
+
   end
 
   def run_ruby(script)
@@ -174,6 +194,24 @@ class Rundown
 
   end
 
+  def handle_script_env(string)
+    if string.strip =~ /\s*rundown set ([a-z0-9_]+)\=(.*)$/i
+      @script_env[$1] = $2
+      true
+    else
+      false
+    end
+  end
+
+  def adjust_shell_scripts(script, mode)
+    # Ensure scripts abort on error when running shell scripts.
+    if ["bash", "sh", "fish", "zsh"].include?(mode)
+      "set -e\n#{script}"
+    else
+      script
+    end
+  end
+
   def execute(child)
     mode, opts, script = if child.options[:lang]
       # Support GFM
@@ -185,19 +223,26 @@ class Rundown
       m, *s = child.value.split("\n")
       m, *o = m.strip.split(/\s+/)
 
-      [m, o, script]
+      [m, o, s]
     end
 
     opts ||= []
     opts += @code_modifiers
     script = Array(script).join("\n")
 
-    if opts.include?("display_only")
+    if opts.include?("reveal_script_only") || opts.include?("reveal_script")
       puts_indented to_text(child)
       @last_block_code = false
       @already_newline = false
       @code_modifiers = []
-      return
+      return if opts.include?("reveal_script_only")
+    end
+
+    stdout_prefix = indent_to_s + @pastel.blue("->") + " "
+    env = @script_env.merge({ "INDENT" => indent_to_s, "STDOUT_PREFIX" => stdout_prefix })
+
+    if opts.include?("display_output") || opts.include?("interactive")
+      opts.unshift("nospin")
     end
 
     task_name, script = get_task_name_from_script(script, opts)
@@ -239,21 +284,51 @@ class Rundown
         mode = "sh" if mode == ""
         process = `which #{mode}`.chomp
 
+        script = adjust_shell_scripts(script, mode)
+
         logger << "Executing script using #{process}\n"
         logger << script + "\n"
         
         f = temp.open
         f.write(script)
         f.close
+
+        capture_env = opts.include?("capture_env")
         
+        # Use the system command instead for interactive scripts (https://github.com/piotrmurach/tty-command/issues/58).
         if opts.include?("interactive")
           logger << "Running script in interactive mode, output ommitted.\n"
-          system(process, temp.path)
-        else
-          result = cmd.run!("#{process} #{temp.path}", chdir: @script_dir, color: false) do |stdout, stderr|
-            puts stdout if opts.include?("reveal")
-            err << stderr
+          r, w = IO.pipe
+          result = system(env, process, temp.path, out: w)
+          w.close
+
+          result = r.read
+          
+          result.to_s.split("\n").each do |r|
+            if capture_env && !handle_script_env(r)
+              puts stdout_prefix @pastel.blue("-> ") + r if opts.include?("display_output")
+            end
           end
+          
+          result
+        else
+          result = cmd.run!(env, "#{process} #{temp.path}", chdir: @script_dir, color: false, tty: true) do |stdout, stderr|
+
+            stdout.to_s.split("\n").each do |line_out|
+              if capture_env && handle_script_env(line_out)
+                # Swallow
+              else
+                puts stdout_prefix + stdout if opts.include?("display_output")            
+              end
+            end
+
+            err << stderr
+
+          end
+
+          binding.pry if $trap
+
+
           !result.failure?
         end
 
