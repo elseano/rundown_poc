@@ -25,7 +25,7 @@ read -p "${STDOUT_PREFIX}Enter your name: " NAME
 echo "rundown set NAME=$NAME"
 ```
 
-``` ruby reveal
+``` ruby display_output
 puts "Your name is: #{ENV["NAME"]}"
 ```
 
@@ -38,7 +38,7 @@ echo "rundown set COL=$COL"
 ```
 -->
 
-``` ruby reveal
+``` ruby display_output
 puts "Your color is: #{ENV["COL"]}"
 ```
 

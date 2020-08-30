@@ -171,9 +171,24 @@ class Rundown
 
   end
 
-  def run_ruby(script)
-    prompt = TTY::Prompt.new
-    eval(script)
+  def add_env(key, value)
+    @script_env[key.to_s] = value
+  end
+  alias set_env add_env
+
+  def run_ruby(script, err, capture_env)
+
+    begin
+      color = Pastel.new
+      stdout_prefix = indent_to_s + color.blue(">")
+      prompt = TTY::Prompt.new(prefix: stdout_prefix + " ")
+      eval(script)
+    rescue => ex
+      err << ex.to_s
+      err << ex.backtrace
+      false
+    end
+
   end
 
   def get_task_name_from_script(script, opts)
@@ -238,7 +253,7 @@ class Rundown
       return if opts.include?("reveal_script_only")
     end
 
-    stdout_prefix = indent_to_s + @pastel.blue("->") + " "
+    stdout_prefix = indent_to_s + @pastel.blue(">") + " "
     env = @script_env.merge({ "INDENT" => indent_to_s, "STDOUT_PREFIX" => stdout_prefix })
 
     if opts.include?("display_output") || opts.include?("interactive")
@@ -270,7 +285,7 @@ class Rundown
         logger << "Running in-process ruby code\n"
         logger << script + "\n"
 
-        case run_ruby(script)
+        case run_ruby(script, err, opts.include?("capture_env"))
         when true 
           true
         when false 
@@ -306,31 +321,34 @@ class Rundown
           
           result.to_s.split("\n").each do |r|
             if capture_env && !handle_script_env(r)
-              puts stdout_prefix @pastel.blue("-> ") + r if opts.include?("display_output")
+              puts stdout_prefix + r if opts.include?("display_output")
             end
           end
           
           result
         else
-          result = cmd.run!(env, "#{process} #{temp.path}", chdir: @script_dir, color: false, tty: true) do |stdout, stderr|
+          outs = []
+          result = cmd.run!(env, "#{process} #{temp.path}", chdir: @script_dir, color: false) do |stdout, stderr|
 
             stdout.to_s.split("\n").each do |line_out|
               if capture_env && handle_script_env(line_out)
                 # Swallow
               else
-                puts stdout_prefix + stdout if opts.include?("display_output")            
+                outs << line_out
+                puts stdout_prefix + line_out if opts.include?("display_output")            
               end
             end
 
-            err << stderr
+            err << stderr if stderr
 
           end
 
           binding.pry if $trap
 
-
           !result.failure?
         end
+
+
 
       end
 

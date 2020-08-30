@@ -2,6 +2,43 @@
 
 This is a Rundown demo script, showing the features of rundown.
 
+# Asking Questions
+
+Using the Ruby Rundown script mode.
+
+``` ruby rundown nospin
+name = prompt.ask("What is your #{color.bold("Name")}?") { |p| p.required }
+add_env("NAME", name)
+```
+
+## Another Question
+
+Indenting is supported within shell script output. Some tools don't play nice, so there's always the `STDOUT_PREFIX` environment variable you can inject.
+
+Note the `capture_env` and `interactive` modifiers.
+
+``` bash capture_env interactive
+read -p "${STDOUT_PREFIX}What is your favourite color? " COL
+echo "rundown set COL=$COL"
+```
+
+``` ruby rundown
+$trap=false
+true
+```
+
+### Your results
+
+Now you can reference these things from the environment.
+
+
+``` bash display_output
+echo "Your name is $NAME"
+echo "Your favourite color is $COL"
+```
+
+# Example project setup
+
 In order to develop Acme, install `homebrew`.
 
 ``` bash named display
@@ -38,6 +75,7 @@ sleep 1
 ``` bash
 We will never get here.
 ```
+
 
 ## Hooking into Widgets
 
