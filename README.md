@@ -191,5 +191,6 @@ Rundown is currently under development. It's good for general use, but there's s
 * [ ] Fix word wrapping (broken upstream tty-markdown)
 * [ ] Automatic links (broken upstream tty-markdown)
 * [ ] Work out how to redirect STDOUT in interactive mode cleanly (broken upstream tty-command) 
+* [ ] Capture xx% in STDOUT, and use as progress for the spinner
 
 If you're using Rundown, let me know! Feel free to add issues and questions.
