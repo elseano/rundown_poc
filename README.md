@@ -194,5 +194,27 @@ Rundown is currently under development. It's good for general use, but there's s
 * [ ] Capture xx% in STDOUT, and use as progress for the spinner
 * [ ] Support running a URL in addition to a local file. 
 * [ ] Support running GitHub project URLs, look for SETUP.md.
+* [ ] Support simple way to use rundown's presentation abilities with existing bash scripts, but supports rundown not being present.
+* [ ] Rundown Shebang
 
 If you're using Rundown, let me know! Feel free to add issues and questions.
+
+## Future direction thoughts
+
+Using rundown inside bash scripts, where we'd like to enable rundown output features without converting a bash script into a markdown file. We'd also like to have the bash script happily run without rundown being present.
+
+Right now I'm thinking of using a socket, the bash script can echo commands into that and rundown adds to the display output.
+
+Maybe something like
+
+``` bash
+#!/bin/bash
+
+test [-f rundown] && rundown --sock &
+
+echo "# Running your file\nThis file will be run." >> /tmp/rundown.mdt
+echo "$ named: Please wait..." >> /tmp/rundown.mdt
+
+runsomething
+```
+
